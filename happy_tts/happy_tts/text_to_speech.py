@@ -6,6 +6,7 @@ from happy_voice_msgs.srv import TextToSpeech
 import requests
 import os
 import threading
+import subprocess
 
 class PiperTTSService(Node):
     def __init__(self):
@@ -25,12 +26,16 @@ class PiperTTSService(Node):
                     raise RuntimeError(f"Piper error {res.status_code}")
                 with open('/tmp/tts.wav', 'wb') as f:
                     f.write(res.content)
-                os.system('aplay /tmp/tts.wav')
+
+                # 🔧 正確に終了まで待つ
+                subprocess.run(['aplay', '/tmp/tts.wav'], check=True)
+
             except Exception as e:
                 self.get_logger().error(f"TTS failed: {e}")
+                
 
         if wait:
-            play()
+            play()  # ✅ ブロッキング再生
         else:
             thread = threading.Thread(target=play)
             thread.start()

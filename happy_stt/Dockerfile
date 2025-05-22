@@ -1,41 +1,33 @@
-FROM ros:humble
+FROM python:3.10-slim
 
-# --- 必要な Linux パッケージ ---
+# システムパッケージ（ALSA/音声再生/C拡張用）
 RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-colcon-common-extensions \
+    gcc \
+    build-essential \
+    libasound2 \
+    libasound2-dev \
+    alsa-utils \
     portaudio19-dev \
-    libsndfile1 \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+    ffmpeg \ 
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# --- torch/torchaudio をローカルの .whl からインストール ---
-COPY wheels /tmp/wheels
-RUN pip3 install --no-index --find-links=/tmp/wheels torch torchaudio
+# Python依存ライブラリ（Whisper含む）
+RUN pip install --no-cache-dir --ignore-installed \
+    flask \
+    sounddevice \
+    soundfile \
+    simpleaudio \
+    numpy \
+    torch \
+    openai-whisper
 
-# --- 他のPython依存パッケージ ---
-COPY requirements.txt /tmp/
-RUN pip3 install --default-timeout=100 --retries=10 --no-cache-dir -r /tmp/requirements.txt
+# Whisperモデル（small）を事前ダウンロード
+RUN python3 -c "import whisper; whisper.load_model('small')"
 
-# --- ROSワークスペース ---
-WORKDIR /workspace
-COPY models/silero_vad.pt /workspace/models/silero_vad.pt
-COPY models/distil-whisper /workspace/models/distil-whisper
-COPY . .
+# アプリ用ファイル配置
+WORKDIR /app
+COPY app.py /app/app.py
+COPY beep.py /app/beep.py
+COPY beep.wav /app/beep.wav
 
-RUN . /opt/ros/humble/setup.sh && \
-    colcon build
-
-# --- 環境設定 ---
-ENV ROS_DOMAIN_ID=0
-SHELL ["/bin/bash", "-c"]
-CMD ["bash"]
-
-# --- 起動時の自動source ---
-RUN echo 'source /opt/ros/humble/setup.bash' >> ~/.bashrc && \
-    echo 'source /opt/hm_msgs_ws/install/setup.bash' >> ~/.bashrc && \
-    echo 'cd /workspace' >> ~/.bashrc
-
-# --- FastRTPSプロファイル設定 ---
-COPY fastrtps_profile.xml /workspace/fastrtps_profile.xml
-ENV FASTRTPS_DEFAULT_PROFILES_FILE=/workspace/fastrtps_profile.xml
+CMD ["python3", "/app/app.py"]

@@ -11,10 +11,14 @@ class PiperLauncher(Node):
         self.get_logger().info("🚀 Launching Piper server...")
 
         try:
-            os.chdir('/home/daniil/piper')  # カレントディレクトリを移動
+            os.chdir('/home/mimi/piper')  # カレントディレクトリを移動
             self.process = subprocess.Popen([
-                "docker", "run", "--rm", "-p", "5000:5000", "-v",
-                f"{os.getcwd()}/models:/app/models",
+                "docker", "run", "--rm",
+                "--device", "/dev/snd",                            # 🔧 追加
+                "-p", "5000:5000",
+                "-v", f"{os.getcwd()}/models:/app/models",
+                "-v", os.path.expanduser("~/.asoundrc") + ":/root/.asoundrc",
+                "--ipc=host",
                 "piper-server"
             ])
             self.get_logger().info("✅ Piper server started.")

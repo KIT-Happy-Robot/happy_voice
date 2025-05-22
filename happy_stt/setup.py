@@ -13,12 +13,6 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-
-        # launchファイル（あれば）
-        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
-
-        # ✅ configフォルダのyamlを含める
-        ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,7 +23,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'stt = happy_stt.speech_to_text:main'
+            'stt = happy_stt.speech_to_text:main',
+            'launch_stt_server = happy_stt.launch_stt_server:main'
+
         ],
     },
 )
