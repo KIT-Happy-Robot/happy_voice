@@ -30,19 +30,24 @@ def play_beep_and_record(samplerate, duration):
     app.logger.info("🎙️ ビープと同時に録音開始...")
 
     try:
-        # wave_obj = sa.WaveObject.from_wave_file("/app/beep.wav")
-        # play_obj = wave_obj.play()
+        # ビープは非ブロッキング再生（録音優先）
+        try:
+            wave_obj = sa.WaveObject.from_wave_file("/app/beep.wav")
+            wave_obj.play()  # wait_done を呼ばない
+        except Exception as e:
+            app.logger.warning(f"⚠️ ビープ再生失敗（録音は続行）: {e}")
 
+        # 録音開始（最優先）
         audio = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=1, device=DEVICE_INDEX)
         sd.wait()
 
-        # play_obj.wait_done()
         app.logger.info("✅ 録音完了")
         return audio
 
     except Exception as e:
-        app.logger.error(f"❌ 録音またはビープ再生エラー: {e}")
+        app.logger.error(f"❌ 録音中のエラー: {e}")
         raise
+
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
