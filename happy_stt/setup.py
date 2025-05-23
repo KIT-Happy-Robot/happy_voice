@@ -27,7 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'stt = happy_stt.speech_to_text:main',
-            'launch_stt = happy_stt.launch_stt:main'
+            'launch_stt_server = happy_stt.launch_stt_server:main'
         ],
     },
 )

@@ -1,82 +1,86 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.callback_groups import ReentrantCallbackGroup
-from happy_voice_msgs.srv import SpeechToText, YesNo, TextToSpeech
-import time
+from rclpy.action import ActionServer
+from happy_voice_msgs.action import YesNo
+from happy_voice_msgs.srv import SpeechToText, TextToSpeech
 
-class YesNoNode(Node):
+class YesNoActionServer(Node):
+
     def __init__(self):
-        super().__init__('yes_no_node')
-        self.cb_group = ReentrantCallbackGroup()
+        super().__init__('yes_no_action_server')
+        self._action_server = ActionServer(
+            self,
+            YesNo,
+            'yes_no',
+            self.execute_callback)
+        self.tts_client = self.create_client(TextToSpeech, 'text_to_speech')
+        self.stt_client = self.create_client(SpeechToText, 'speech_to_text')
 
-        self.stt_client = self.create_client(SpeechToText, 'speech_to_text', callback_group=self.cb_group)
-        self.tts_client = self.create_client(TextToSpeech, 'text_to_speech', callback_group=self.cb_group)
-        self.srv = self.create_service(YesNo, 'yes_no', self.handle_yes_no, callback_group=self.cb_group)
-
-        while not self.stt_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('speech_to_text サービスを待っています...')
         while not self.tts_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('text_to_speech サービスを待っています...')
+            self.get_logger().warn("TTSサービス待機中...")
+        while not self.stt_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn("STTサービス待機中...")
 
-    def handle_yes_no(self, request, response):
-        yes_words = {"yes", "yeah", "yep"}
-        no_words = {"no", "nope", "nah"}
+    async def execute_callback(self, goal_handle):
+        self.get_logger().info('📡 Executing goal...')
+        feedback_msg = YesNo.Feedback()
+        result = YesNo.Result()
+        yes_words = {"yes", "yeah", "yep", "はい"}
+        no_words = {"no", "nope", "nah", "いいえ"}
 
-        while True:
-            # ✅ TTSで「Please say yes or no.」
-            if not self.speak("Please say yes or no."):
-                response.result = False
-                return response
-            time.sleep(0.5)
+        MAX_RETRIES = 2
+        retry_count = 0
 
-            # ✅ STT呼び出し
+        while retry_count <= MAX_RETRIES:
+            # フィードバック送信 & TTS
+            feedback_msg.current_phase = f"TTS phase (try {retry_count + 1})"
+            goal_handle.publish_feedback(feedback_msg)
+
+            tts_req = TextToSpeech.Request()
+            tts_req.text = goal_handle.request.prompt_text if retry_count == 0 else "Sorry, one more time please."
+            tts_req.wait_until_done = True
+            tts_future = self.tts_client.call_async(tts_req)
+            await tts_future
+
+            # STT呼び出し
+            feedback_msg.current_phase = f"STT phase (try {retry_count + 1})"
+            goal_handle.publish_feedback(feedback_msg)
+
             stt_req = SpeechToText.Request()
             stt_future = self.stt_client.call_async(stt_req)
-            rclpy.spin_until_future_complete(self, stt_future)
+            await stt_future
 
-            if stt_future.result() is None:
-                self.get_logger().error("❌ STTの応答がありませんでした")
-                response.result = False
-                return response
+            if not stt_future.result() or not stt_future.result().text:
+                self.get_logger().warn("⚠️ STTが無効な結果を返しました")
+                retry_count += 1
+                continue
 
             text = stt_future.result().text.strip().lower().strip(".,!?")
-            self.get_logger().info(f"✅ 認識結果: {text}")
+            self.get_logger().info(f"📝 認識結果: '{text}'")
 
             if text in yes_words:
-                response.result = True
-                return response
+                result.result = True
+                goal_handle.succeed()
+                return result
             elif text in no_words:
-                response.result = False
-                return response
+                result.result = False
+                goal_handle.succeed()
+                return result
             else:
-                self.get_logger().warn(f"⚠️ 不明な応答「{text}」、再試行します")
-                self.speak("Sorry, one more time please.")
+                self.get_logger().warn(f"⚠️ 不明な入力「{text}」、再試行")
+                retry_count += 1
 
-    def speak(self, text):
-        """TTSで発話し、成功すればTrueを返す"""
-        tts_req = TextToSpeech.Request()
-        tts_req.text = text
-        tts_req.wait_until_done = True
-        self.get_logger().info(f"🗣️ TTS発話: {text}")
-        future = self.tts_client.call_async(tts_req)
-        rclpy.spin_until_future_complete(self, future)
-        if future.result() and future.result().success:
-            return True
-        self.get_logger().error("❌ TTSが失敗しました")
-        return False
+        # 最後まで判定できなかった
+        self.get_logger().error("❌ 最大リトライに達したため中断")
+        result.result = False
+        goal_handle.abort()
+        return result
 
-
-def main():
-    rclpy.init()
-    node = YesNoNode()
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-    try:
-        executor.spin()
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+def main(args=None):
+    rclpy.init(args=args)
+    action_server = YesNoActionServer()
+    rclpy.spin(action_server)
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

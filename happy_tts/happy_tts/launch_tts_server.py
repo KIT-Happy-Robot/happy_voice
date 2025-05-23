@@ -22,7 +22,7 @@ class PiperLauncher(Node):
                 "python3 -m piper.http_server "
                 "--model /app/models/en_US-hfc_female-medium.onnx "
                 "--config /app/models/en_US-hfc_female-medium.onnx.json "
-                "--port 5001"
+                "--port 5000"
             ])
             self.get_logger().info("✅ Piper server started on port 5001 (host networking).")
         except Exception as e:

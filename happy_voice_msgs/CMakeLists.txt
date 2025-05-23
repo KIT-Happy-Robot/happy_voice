@@ -7,14 +7,18 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(builtin_interfaces REQUIRED)  # ★ これがないとダメ！
+find_package(builtin_interfaces REQUIRED)
+find_package(action_msgs REQUIRED)  # アクションインターフェースに必要
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/TextToSpeech.srv"
   "srv/SpeechToText.srv"
   "srv/YesNo.srv"
-  DEPENDENCIES builtin_interfaces
+  "action/YesNo.action"  # アクションファイルを追加
+  DEPENDENCIES builtin_interfaces action_msgs
 )
+
+ament_export_dependencies(rosidl_default_runtime)  # 実行時依存関係をエクスポート
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

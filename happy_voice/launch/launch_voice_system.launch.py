@@ -15,7 +15,7 @@ def generate_launch_description():
         ),
         Node(
             package='happy_stt',
-            executable='launch_stt',  
+            executable='launch_stt_server',  
             name='stt_server'
         ),
         Node(

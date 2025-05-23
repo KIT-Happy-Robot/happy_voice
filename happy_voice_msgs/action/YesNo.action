@@ -1,0 +1,8 @@
+# Goal
+string prompt_text
+---
+# Result
+bool result
+---
+# Feedback
+string current_phase
